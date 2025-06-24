@@ -2,6 +2,7 @@
 
 A Python tool for automatic recovery of `.chk` files that are typically created after a disk repair with `chkdsk`.
 
+![img.png](assets/img.png)
 ## What does the script do?
 
 The CHK File Recovery Tool analyzes `.chk` files and recovers them based on their file signatures. For Office documents, it additionally extracts the "Date Last Saved" from the metadata and uses it as the filename to enable meaningful naming.
@@ -124,3 +125,4 @@ Contributions are welcome! Please open an issue or create a pull request.
 - Improved metadata extraction
 - GUI version
 - Batch processing of multiple folders
+- Different Output-Folders
