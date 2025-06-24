@@ -6,20 +6,56 @@ import xml.etree.ElementTree as ET
 
 # Known file signatures (Hex → File extension)
 SIGNATURES = {
+
+    b'\x0A': '.pcx',  # PCX (ZBrush)
+    b'L\x00\x00\x00': '.lnk',  # Windows shortcut
+    b'ftypqt': '.mov',  # QuickTime
+
+    # Images
     b'\xFF\xD8\xFF': '.jpg',
     b'\x89PNG\r\n\x1a\n': '.png',
     b'GIF87a': '.gif',
     b'GIF89a': '.gif',
-    b'%PDF-': '.pdf',
-    b'ID3': '.mp3',
-    b'\xFF\xFB': '.mp3',
     b'\x42\x4D': '.bmp',
     b'\x00\x00\x01\x00': '.ico',
     b'\x49\x49\x2A\x00': '.tif',
     b'\x4D\x4D\x00\x2A': '.tif',
+    b'RIFF': '.webp',  # Will be refined in detect_file_type
+
+    # Documents
+    b'%PDF-': '.pdf',
     b'\x25\x21\x50\x53': '.ps',
+    b'PK\x03\x04': '.zip',  # ZIP files (including Office documents)
+
+    # Audio
+    b'ID3': '.mp3',
+    b'\xFF\xFB': '.mp3',
+    b'\xFF\xF3': '.mp3',
+    b'\xFF\xF2': '.mp3',
     b'OggS': '.ogg',
     b'fLaC': '.flac',
+    b'RIFF': '.wav',  # Will be refined in detect_file_type
+
+    # Video
+    b'\x00\x00\x00\x18ftypmp4': '.mp4',
+    b'\x00\x00\x00\x20ftypmp4': '.mp4',
+    b'\x00\x00\x00\x1Cftypmp4': '.mp4',
+    b'ftypmp4': '.mp4',
+    b'ftypisom': '.mp4',
+    b'ftypMSNV': '.mp4',
+    b'ftypM4V': '.m4v',
+    b'RIFF': '.avi',  # Will be refined in detect_file_type
+    b'\x1A\x45\xDF\xA3': '.mkv',
+    b'FLV\x01': '.flv',
+    b'\x00\x00\x01\xBA': '.mpg',
+    b'\x00\x00\x01\xB3': '.mpg',
+
+    # Archives
+    b'Rar!\x1A\x07\x00': '.rar',
+    b'Rar!\x1A\x07\x01\x00': '.rar',
+    b'\x37\x7A\xBC\xAF\x27\x1C': '.7z',
+
+    # Office (legacy)
     b'\xD0\xCF\x11\xE0\xA1\xB1\x1A\xE1': '.ole',  # MS Office legacy + .msg
 }
 
@@ -40,36 +76,118 @@ def detect_file_type(file_path):
         # Read first 512 bytes
         with open(file_path, 'rb') as f:
             header = f.read(512)
+
+            # Check for text files first (UTF-8, ASCII)
+            if is_text_file(header):
+                return '.txt'
+
+            # Check specific RIFF-based formats
+            if header.startswith(b'RIFF') and len(header) >= 12:
+                riff_type = header[8:12]
+                if riff_type == b'WAVE':
+                    return '.wav'
+                elif riff_type == b'AVI ':
+                    return '.avi'
+                elif riff_type == b'WEBP':
+                    return '.webp'
+
+            # Check for video formats with ftyp
+            if b'ftyp' in header[:32]:
+                ftyp_pos = header.find(b'ftyp')
+                if ftyp_pos != -1 and ftyp_pos + 8 <= len(header):
+                    brand = header[ftyp_pos + 4:ftyp_pos + 8]
+                    if brand in [b'mp41', b'mp42', b'isom', b'M4V ', b'MSNV']:
+                        return '.mp4'
+                    elif brand == b'M4V ':
+                        return '.m4v'
+
+            # Check standard signatures
             for sig, ext in SIGNATURES.items():
                 if header.startswith(sig):
                     if ext == '.ole':
                         # Check specifically for .msg
                         if b'__substg1.0_1000001E' in header:
                             return '.msg'
-                        # Alternatively: recognize old DOC/XLS/PPT
-                        return '.doc'  # Default to .doc
+                        # Default to .doc for OLE
+                        return '.doc'
+                    elif ext == '.zip':
+                        # Analyze ZIP content to determine specific type
+                        return analyze_zip_content(file_path)
                     else:
                         return ext
 
-        # Analyze ZIP-based formats (docx, xlsx, pptx)
-        try:
-            with zipfile.ZipFile(file_path, 'r') as zip_ref:
-                namelist = zip_ref.namelist()
-                if '[Content_Types].xml' in namelist:
-                    if any(name.startswith('word/') for name in namelist):
-                        return '.docx'
-                    elif any(name.startswith('xl/') for name in namelist):
-                        return '.xlsx'
-                    elif any(name.startswith('ppt/') for name in namelist):
-                        return '.pptx'
-                    else:
-                        return '.zip'
-        except zipfile.BadZipFile:
-            pass
     except Exception:
         pass
 
     return None
+
+
+def is_text_file(data):
+    """Check if data represents a text file"""
+    if not data:
+        return False
+
+    # Check for BOM (Byte Order Mark)
+    if data.startswith(b'\xEF\xBB\xBF'):  # UTF-8 BOM
+        return True
+    if data.startswith(b'\xFF\xFE') or data.startswith(b'\xFE\xFF'):  # UTF-16 BOM
+        return True
+
+    # Check first 512 bytes for text characteristics
+    text_characters = 0
+    printable_chars = 0
+
+    for byte in data[:512]:
+        if 32 <= byte <= 126:  # Printable ASCII
+            printable_chars += 1
+            text_characters += 1
+        elif byte in [9, 10, 13]:  # Tab, LF, CR
+            text_characters += 1
+        elif byte < 32 or byte > 126:  # Non-printable
+            # Allow some non-printable characters for UTF-8
+            if byte >= 128:  # Potential UTF-8
+                text_characters += 0.5
+
+    # If more than 70% are text characters, consider it a text file
+    if len(data) > 0:
+        text_ratio = text_characters / len(data[:512])
+        return text_ratio > 0.7
+
+    return False
+
+
+def analyze_zip_content(file_path):
+    """Analyze ZIP file content to determine specific type"""
+    try:
+        with zipfile.ZipFile(file_path, 'r') as zip_ref:
+            namelist = zip_ref.namelist()
+
+            # Check for Office document signatures
+            if '[Content_Types].xml' in namelist:
+                if any(name.startswith('word/') for name in namelist):
+                    return '.docx'
+                elif any(name.startswith('xl/') for name in namelist):
+                    return '.xlsx'
+                elif any(name.startswith('ppt/') for name in namelist):
+                    return '.pptx'
+
+            # Check for other specific ZIP-based formats
+            if 'META-INF/MANIFEST.MF' in namelist:
+                return '.jar'  # Java Archive
+
+            if 'AndroidManifest.xml' in namelist:
+                return '.apk'  # Android Package
+
+            # Default to regular ZIP file
+            return '.zip'
+
+    except zipfile.BadZipFile:
+        # If it starts with PK but isn't a valid ZIP, might be corrupted
+        return '.zip'
+    except Exception:
+        pass
+
+    return '.zip'
 
 
 def get_office_last_saved(file_path, file_ext):

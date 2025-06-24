@@ -22,10 +22,12 @@ The CHK File Recovery Tool analyzes `.chk` files and recovers them based on thei
 - **BMP** (`.bmp`) - `42 4D`
 - **TIFF** (`.tif`) - `49 49 2A 00` / `4D 4D 00 2A`
 - **ICO** (`.ico`) - `00 00 01 00`
+- **WebP** (`.webp`) - `52 49 46 46` + `57 45 42 50`
 
-### Documents
+### Documents & Text
 - **PDF** (`.pdf`) - `25 50 44 46`
 - **PostScript** (`.ps`) - `25 21 50 53`
+- **Text Files** (`.txt`) - Detected by content analysis (UTF-8, ASCII)
 
 ### Microsoft Office (Modern Formats)
 - **Word** (`.docx`) - ZIP-based with Word-specific structures
@@ -37,9 +39,23 @@ The CHK File Recovery Tool analyzes `.chk` files and recovers them based on thei
 - **Outlook Messages** (`.msg`) - OLE-based with MSG-specific structures
 
 ### Audio
-- **MP3** (`.mp3`) - `49 44 33` / `FF FB`
+- **MP3** (`.mp3`) - `49 44 33` / `FF FB` / `FF F3` / `FF F2`
+- **WAV** (`.wav`) - `52 49 46 46` + `57 41 56 45`
 - **OGG** (`.ogg`) - `4F 67 67 53`
 - **FLAC** (`.flac`) - `66 4C 61 43`
+
+### Video
+- **MP4** (`.mp4`) - `66 74 79 70` (ftyp) with various brands
+- **M4V** (`.m4v`) - `66 74 79 70` + `4D 34 56 20`
+- **AVI** (`.avi`) - `52 49 46 46` + `41 56 49 20`
+- **MKV** (`.mkv`) - `1A 45 DF A3`
+- **FLV** (`.flv`) - `46 4C 56 01`
+- **MPG/MPEG** (`.mpg`) - `00 00 01 BA` / `00 00 01 B3`
+
+### Archives
+- **ZIP** (`.zip`) - `50 4B 03 04` (also detects JAR, APK)
+- **RAR** (`.rar`) - `52 61 72 21 1A 07`
+- **7-Zip** (`.7z`) - `37 7A BC AF 27 1C`
 
 ## Installation & Usage
 
@@ -48,10 +64,10 @@ The CHK File Recovery Tool analyzes `.chk` files and recovers them based on thei
 - No additional packages required (uses only standard libraries)
 
 ### Usage
- 
+
 1. **Download the script**:
    ```bash
-   git clone https://github.com/7uuki/CHK-File-Recovery-Tool.git
+   git clone https://github.com/yourusername/chk-file-recovery.git
    cd chk-file-recovery
    ```
 
@@ -107,4 +123,4 @@ Contributions are welcome! Please open an issue or create a pull request.
 - Support for additional file formats
 - Improved metadata extraction
 - GUI version
-- Batch processing of multiple folders**
+- Batch processing of multiple folders
